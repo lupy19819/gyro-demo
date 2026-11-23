@@ -10,11 +10,16 @@
 <body>
   <main id="stage">
     <canvas id="panorama" aria-label="龟岛全景，可用手指拖动观察"></canvas>
+    <div id="rift-overlay" class="rift-overlay" aria-hidden="true">
+      <div class="rift-veil"></div>
+      <div class="rift-readout"><span id="rift-label">待连接</span><small id="rift-subline">WORLD LINK · STANDBY</small></div>
+      <div class="rift-frame"></div>
+    </div>
     <div class="shade top-shade" aria-hidden="true"></div>
     <div class="shade bottom-shade" aria-hidden="true"></div>
     <header class="top-bar">
       <div>
-        <div class="eyebrow">INTERWORLD · PROTOTYPE 03</div>
+        <div class="eyebrow">INTERWORLD · PROTOTYPE 04</div>
         <h1>异世界裂缝</h1>
         <div class="subtitle">龟岛 · 监视哨遗址屋顶</div>
       </div>
@@ -31,10 +36,10 @@
       </div>
       <div class="actions">
         <button id="enable" class="enable-btn" type="button">① 启用方向感应</button>
-        <button id="observe" class="observe-btn" type="button" disabled>按住 · 观察异世界</button>
+        <button id="observe" class="observe-btn" type="button" disabled>按住 · 开启异世界</button>
         <button id="recenter" class="secondary-btn" type="button">回正 / 重设基准</button>
       </div>
-      <p class="help">按住观察 · 松开冻结 · 松开后移动手机 · 再按住显示新方向<br/>「回正 / 重设基准」重设手机朝向的正前方；触屏仍可拖动</p>
+      <p class="help">按住解除灰白封印 · 松开凝固并褪色 · 松开后移动手机 · 再按住显示新方向<br/>「回正 / 重设基准」重设手机朝向的正前方；触屏仍可拖动</p>
     </section>
   </main>
   <script type="module" src="app.js"></script>

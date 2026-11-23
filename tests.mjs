@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {qDevice,qFromView,viewFromQuat,relativeView,wrapPi} from './gyro-math.mjs';
 import {makeGyroController} from './gyro.mjs';
+import {RiftEffects} from './rift-effects.mjs';
 const near=(a,b,e=1e-6)=>assert.ok(Math.abs(a-b)<e,`expected ${a} ~ ${b}`);
 const angleNear=(a,b,e=1e-6)=>near(wrapPi(a-b),0,e);
 
@@ -69,3 +70,23 @@ controller.begin();angleNear(view.yaw,preRotation.yaw);near(view.pitch,preRotati
 controller.end();
 assert.equal(controller.hasOrigin,true);
 console.log('PASS v0.3: 长期姿态基准、低头校准、释放仍跟踪、重按接管新位置、回位、反复按放不累积、手动重设、横竖屏切换');
+
+const fx=new RiftEffects({openMs:600,freezeMs:500});
+near(fx.sample(0).freeze,0);
+fx.setFrozen(true,1000);
+assert.equal(fx.sample(1020).direction,-1);
+assert.ok(fx.sample(1300).freeze>0.5);
+near(fx.tick(2000).freeze,1);
+fx.setFrozen(false,2100);
+assert.equal(fx.sample(2150).direction,1);
+assert.ok(fx.sample(2400).pulse>0);
+near(fx.tick(2900).freeze,0);
+fx.setFrozen(true,3000);
+const mid=fx.sample(3180).freeze;
+fx.setFrozen(false,3180);
+near(fx.sample(3180).freeze,mid);
+const midAgain=fx.sample(3220).freeze;
+fx.setFrozen(true,3220);
+near(fx.sample(3220).freeze,midAgain);
+near(fx.tick(4000).freeze,1);
+console.log('PASS v0.4: seal/unseal transition and interrupted-state continuity');

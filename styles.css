@@ -54,3 +54,28 @@ button:disabled{opacity:.35;cursor:default}
  .observe-btn,.secondary-btn{height:47px}
 }
 
+
+/* v0.4 portal layer: decorative only, never intercepts sensor/button input */
+.rift-overlay{pointer-events:none;position:absolute;inset:0;z-index:1;overflow:hidden}
+.rift-veil{position:absolute;inset:0;opacity:0;transition:opacity .48s ease;
+ background:radial-gradient(ellipse at 50% 44%,transparent 38%,rgba(204,226,230,.085) 72%,rgba(210,231,234,.19) 100%),
+ repeating-linear-gradient(0deg,rgba(227,240,241,.04) 0px,rgba(227,240,241,.04) 1px,transparent 2px,transparent 5px);
+ mix-blend-mode:screen}
+#stage[data-rift-state="frozen"] .rift-veil{opacity:1}
+.rift-readout{position:absolute;left:50%;top:19%;transform:translate(-50%,-3px);display:flex;align-items:center;flex-direction:column;
+ white-space:nowrap;gap:5px;opacity:.76;transition:opacity .26s ease,transform .32s ease;letter-spacing:.25em;
+ color:#edf7f7;text-shadow:0 1px 10px rgba(12,38,44,.75)}
+.rift-readout span{font-size:11px;font-weight:650;letter-spacing:.31em}
+.rift-readout small{font-size:8px;letter-spacing:.20em;opacity:.78}
+#stage[data-rift-state="open"] .rift-readout{color:#a3ffe5;opacity:.93;transform:translate(-50%,0)}
+#stage[data-rift-state="frozen"] .rift-readout{color:#edf5f5;opacity:.92;transform:translate(-50%,0)}
+.rift-frame{position:absolute;inset:14px;border:1px solid rgba(208,239,239,.12);border-radius:24px;
+ box-shadow:inset 0 0 70px rgba(170,217,220,.045);opacity:.25;transition:opacity .45s,border-color .45s}
+#stage[data-rift-state="frozen"] .rift-frame{border-color:rgba(231,243,246,.31);opacity:.9}
+#stage[data-rift-state="open"] .rift-frame{border-color:rgba(77,238,195,.24);opacity:.75}
+#stage[data-rift-state="frozen"] .reticle{opacity:.55;filter:grayscale(1)}
+#stage[data-rift-state="open"] .reticle{opacity:.78;filter:drop-shadow(0 0 5px #69e9d4)}
+#stage[data-rift-state="frozen"] .observe-btn{border-color:rgba(232,242,245,.6);
+ background:linear-gradient(135deg,#627680,#445963);color:#f3fafb;box-shadow:0 0 15px rgba(221,237,243,.10)}
+@media(prefers-reduced-motion:reduce){.rift-veil,.rift-readout,.rift-frame{transition:none}}
+@media(max-height:550px) and (orientation:landscape){.rift-readout{top:11%}.rift-frame{inset:7px}}

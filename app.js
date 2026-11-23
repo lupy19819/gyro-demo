@@ -1,10 +1,22 @@
 import { makeGyroController } from './gyro.mjs';
+import { RiftEffects } from './rift-effects.mjs';
 
 const canvas = document.querySelector('#panorama');
 const statusEl = document.querySelector('#sensor-status');
 const detailEl = document.querySelector('#sensor-detail');
 const holdButton = document.querySelector('#observe');
 const enableButton = document.querySelector('#enable');
+const stage = document.querySelector('#stage');
+const riftLabel = document.querySelector('#rift-label');
+const riftSubline = document.querySelector('#rift-subline');
+const riftFx = new RiftEffects();
+const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+function setRiftPhase(active) {
+  riftFx.setFrozen(!active, performance.now());
+  stage.dataset.riftState = active ? 'open' : 'frozen';
+  riftLabel.textContent = active ? '裂缝开启' : '时序冻结';
+  riftSubline.textContent = active ? 'WORLD LINK · ACTIVE' : 'WORLD LINK · PAUSED';
+}
 const state = { yaw: 0.15, pitch: 0.12, fov: 1.12, elapsedTime: 0, drift: false,
   dragging: false, lastX: 0, lastY: 0, gyroHolding: false };
 const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
@@ -30,6 +42,10 @@ uniform float u_pitch;
 uniform float u_fov;
 uniform float u_clouds;
 uniform float u_water;
+uniform float u_freeze;
+uniform float u_fx_progress;
+uniform float u_fx_direction;
+uniform float u_fx_pulse;
 uniform sampler2D u_sky_texture;
 
 #define PI 3.14159265359
@@ -99,7 +115,26 @@ void main() {
   float edge = 1.0 - smoothstep(0.44, 1.02, length(p));
   col *= 0.84 + edge * 0.18;
   col = pow(max(col, 0.0), vec3(0.92));
-  outColor = vec4(col, 1.0);
+
+  // Frozen world: subdued silver-white monochrome, visible scene structure.
+  float lum=dot(col,vec3(0.2126,0.7152,0.0722));
+  vec3 silver=vec3(0.21,0.26,0.30)+vec3(0.65,0.66,0.66)*clamp(lum*0.92+0.12,0.0,1.0);
+  float grain=(hash21(floor(v_uv*u_resolution*0.32))-0.5)*0.018;
+  float lines=sin(v_uv.y*u_resolution.y*0.34)*0.006;
+  silver+=vec3(grain+lines);
+  col=mix(col,silver,clamp(u_freeze,0.0,1.0));
+
+  // Single-pass GPU seal/unseal wave: no extra textures, no frame captures.
+  float aspect=u_resolution.x/u_resolution.y;
+  vec2 cp=(v_uv-0.5)*vec2(aspect,1.0);
+  float maxRadius=length(vec2(aspect,1.0))*0.5;
+  float distanceFromCenter=length(cp)/maxRadius;
+  float ring=exp(-pow((distanceFromCenter-u_fx_progress*1.10)*30.0,2.0));
+  vec3 light=u_fx_direction>0.0?vec3(0.13,0.57,0.58):vec3(0.52,0.58,0.64);
+  col+=light*ring*u_fx_pulse*0.35;
+  float sealFlash=step(u_fx_direction,-0.5)*(1.0-smoothstep(0.02,0.34,u_fx_progress))*u_fx_pulse*0.13;
+  col=mix(col,vec3(0.90,0.95,0.97),sealFlash);
+  outColor = vec4(clamp(col,0.0,1.0), 1.0);
 }`;
 
 function compile(type, source) {
@@ -122,7 +157,7 @@ gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1])
 const position = gl.getAttribLocation(program, 'a_position');
 gl.enableVertexAttribArray(position);
 gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
-const uniformNames = ['u_resolution','u_time','u_yaw','u_pitch','u_fov','u_clouds','u_water','u_sky_texture'];
+const uniformNames = ['u_resolution','u_time','u_yaw','u_pitch','u_fov','u_clouds','u_water','u_freeze','u_fx_progress','u_fx_direction','u_fx_pulse','u_sky_texture'];
 const uniforms = Object.fromEntries(uniformNames.map(n => [n, gl.getUniformLocation(program,n)]));
 let skyTexture = null;
 function resize() {
@@ -143,6 +178,11 @@ function render() {
   gl.uniform1f(uniforms.u_fov, state.fov);
   gl.uniform1f(uniforms.u_clouds, 0);
   gl.uniform1f(uniforms.u_water, 0);
+  const fx = riftFx.tick(performance.now());
+  gl.uniform1f(uniforms.u_freeze, fx.freeze);
+  gl.uniform1f(uniforms.u_fx_progress, fx.progress);
+  gl.uniform1f(uniforms.u_fx_direction, reducedMotion ? 0 : fx.direction);
+  gl.uniform1f(uniforms.u_fx_pulse, reducedMotion ? 0 : fx.pulse);
   if (skyTexture) {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, skyTexture);
     gl.uniform1i(uniforms.u_sky_texture, 0);
@@ -185,6 +225,7 @@ async function requestSensor() {
     await gyro.enable();
     enableButton.hidden=true;
     holdButton.disabled=false;
+    setRiftPhase(false);
   } catch(e) {
     setStatus(e.message || '传感器授权失败', 'error');
   } finally {
@@ -202,17 +243,19 @@ function startObserve(event) {
   // Re-press resumes the persistent sensor coordinate system (no fresh clutch anchor).
   if (!gyro.begin()) { activePointer=null; return; }
   state.gyroHolding=true;
+  setRiftPhase(true);
   state.drift=false;
   holdButton.classList.add('holding');
-  holdButton.textContent='观察中 · 松开固定视角';
+  holdButton.textContent='观测中 · 松开冻结世界';
 }
 function endObserve(event) {
   if (activePointer === null || event.pointerId!==activePointer) return;
   activePointer=null;
   state.gyroHolding=false;
   gyro.end();
+  setRiftPhase(false);
   holdButton.classList.remove('holding');
-  holdButton.textContent='按住 · 观察异世界';
+  holdButton.textContent='按住 · 开启异世界';
 }
 holdButton.addEventListener('pointerdown', startObserve);
 for(const n of ['pointerup','pointercancel','lostpointercapture'])
@@ -277,12 +320,14 @@ window.render_game_to_text=()=>JSON.stringify({
   scene:'kameshima-watchtower-roof', source:'original bg08_d.png',
   view:{yaw:+state.yaw.toFixed(4),pitch:+state.pitch.toFixed(4),fov:+state.fov.toFixed(4)},
   gyro:{enabled:gyro.ready,holding:gyro.holding,hasSample:gyro.hasSample,hasOrigin:gyro.hasOrigin,trackingView:gyro.trackingView},
+  rift:{mode:stage.dataset.riftState??'uninitialized',freeze:+riftFx.sample(performance.now()).freeze.toFixed(3)},
   projection:'fixed-point 3DoF panorama'
 });
 window.gyroDemo={
   // For browser QA only. Real devices use DeviceOrientationEvent.
   debugFeed:(alpha,beta,gamma,screenAngle=0)=>gyro.debugFeed(alpha,beta,gamma,screenAngle),
-  debugBegin:()=>gyro.begin(), debugEnd:()=>gyro.end(),
+  debugBegin:()=>{const ok=gyro.begin();if(ok){state.gyroHolding=true;setRiftPhase(true);}return ok;},
+  debugEnd:()=>{gyro.end();state.gyroHolding=false;setRiftPhase(false);},
   debugRecenter:()=>{state.yaw=0.15;state.pitch=0.12;gyro.resetReference();},
-  getState:()=>({...state})
+  getState:()=>({...state,rift:riftFx.sample(performance.now()),riftMode:stage.dataset.riftState})
 };
