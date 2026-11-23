@@ -54,7 +54,3 @@ button:disabled{opacity:.35;cursor:default}
  .observe-btn,.secondary-btn{height:47px}
 }
 
-.return-setting{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(8,26,37,.48);font-size:11px;line-height:1.4;color:#d4eceb;cursor:pointer}
-.return-setting input{width:16px;height:16px;flex:none;accent-color:#70d8bb}
-.secondary-btn{min-width:100px}
-@media(max-height:550px) and (orientation:landscape){.return-setting{font-size:10px;margin-top:5px;padding:4px 8px}}

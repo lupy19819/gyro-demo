@@ -5,7 +5,6 @@ const statusEl = document.querySelector('#sensor-status');
 const detailEl = document.querySelector('#sensor-detail');
 const holdButton = document.querySelector('#observe');
 const enableButton = document.querySelector('#enable');
-const autoReturnToggle = document.querySelector('#auto-return');
 const state = { yaw: 0.15, pitch: 0.12, fov: 1.12, elapsedTime: 0, drift: false,
   dragging: false, lastX: 0, lastY: 0, gyroHolding: false };
 const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
@@ -200,7 +199,7 @@ function startObserve(event) {
   event.preventDefault();
   activePointer=event.pointerId;
   holdButton.setPointerCapture(event.pointerId);
-  // Every hold anchors the current device pose to the current image view.
+  // Re-press resumes the persistent sensor coordinate system (no fresh clutch anchor).
   if (!gyro.begin()) { activePointer=null; return; }
   state.gyroHolding=true;
   state.drift=false;
@@ -230,7 +229,6 @@ document.addEventListener('visibilitychange',()=>{
 // Touch-drag fallback. The button is a separate surface, so there is no gesture conflict.
 canvas.addEventListener('pointerdown',(e)=>{
   if (state.gyroHolding) return;
-  gyro.interruptReturn();
   state.dragging=true; state.lastX=e.clientX; state.lastY=e.clientY;
   canvas.setPointerCapture(e.pointerId);
 });
@@ -247,19 +245,17 @@ canvas.addEventListener('wheel',e=>{
   e.preventDefault();state.fov=Math.max(0.62,Math.min(1.65,state.fov+e.deltaY*0.0008));
 },{passive:false});
 window.addEventListener('keydown',(e)=>{
-  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))gyro.interruptReturn();
   if(e.key==='ArrowLeft')state.yaw-=0.035;
   if(e.key==='ArrowRight')state.yaw+=0.035;
   if(e.key==='ArrowUp')state.pitch=Math.min(1.40,state.pitch+0.035);
   if(e.key==='ArrowDown')state.pitch=Math.max(-1.40,state.pitch-0.035);
 });
 
-// Reset while holding causes a new anchor, with no jump when the next sensor sample arrives.
+// Explicit recalibration: the current phone pose becomes the new world forward.
 document.querySelector('#recenter').addEventListener('click',()=>{
   state.yaw=0.15; state.pitch=0.12; state.fov=1.12;
   gyro.resetReference();
 });
-autoReturnToggle.addEventListener('change',()=>gyro.setAutoReturn(autoReturnToggle.checked));
 document.querySelector('#fullscreen').addEventListener('click',async()=>{
   try {
     if(!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
@@ -271,7 +267,6 @@ let prev = performance.now();
 function frame(now) {
   const dt=Math.min(0.05,(now-prev)/1000);prev=now;
   state.elapsedTime+=dt;
-  gyro.tick(now);
   if(state.drift && !state.gyroHolding && !state.dragging)state.yaw+=dt*0.018;
   render();
   requestAnimationFrame(frame);
@@ -281,13 +276,13 @@ requestAnimationFrame(frame);
 window.render_game_to_text=()=>JSON.stringify({
   scene:'kameshima-watchtower-roof', source:'original bg08_d.png',
   view:{yaw:+state.yaw.toFixed(4),pitch:+state.pitch.toFixed(4),fov:+state.fov.toFixed(4)},
-  gyro:{enabled:gyro.ready,holding:gyro.holding,hasSample:gyro.hasSample,hasOrigin:gyro.hasOrigin,returnArmed:gyro.returnArmed,autoReturn:gyro.autoReturn},
+  gyro:{enabled:gyro.ready,holding:gyro.holding,hasSample:gyro.hasSample,hasOrigin:gyro.hasOrigin,trackingView:gyro.trackingView},
   projection:'fixed-point 3DoF panorama'
 });
 window.gyroDemo={
   // For browser QA only. Real devices use DeviceOrientationEvent.
   debugFeed:(alpha,beta,gamma,screenAngle=0)=>gyro.debugFeed(alpha,beta,gamma,screenAngle),
-  debugBegin:()=>gyro.begin(), debugEnd:()=>gyro.end(), debugTick:(t)=>gyro.tick(t),
+  debugBegin:()=>gyro.begin(), debugEnd:()=>gyro.end(),
   debugRecenter:()=>{state.yaw=0.15;state.pitch=0.12;gyro.resetReference();},
   getState:()=>({...state})
 };

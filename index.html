@@ -14,7 +14,7 @@
     <div class="shade bottom-shade" aria-hidden="true"></div>
     <header class="top-bar">
       <div>
-        <div class="eyebrow">INTERWORLD · PROTOTYPE 02</div>
+        <div class="eyebrow">INTERWORLD · PROTOTYPE 03</div>
         <h1>异世界裂缝</h1>
         <div class="subtitle">龟岛 · 监视哨遗址屋顶</div>
       </div>
@@ -26,16 +26,15 @@
         <span class="indicator"></span>
         <div>
           <p id="sensor-status" aria-live="polite">未开启姿态感应 · 触屏可以拖动场景</p>
-          <small id="sensor-detail">首次按住记录回位基准；松开后持续识别手机姿态</small>
+          <small id="sensor-detail">松手只冻结画面；手机转动仍被记录，重按即同步新方向</small>
         </div>
       </div>
       <div class="actions">
         <button id="enable" class="enable-btn" type="button">① 启用方向感应</button>
         <button id="observe" class="observe-btn" type="button" disabled>按住 · 观察异世界</button>
-        <button id="recenter" class="secondary-btn" type="button">回正 / 设基准</button>
+        <button id="recenter" class="secondary-btn" type="button">回正 / 重设基准</button>
       </div>
-      <label class="return-setting"><input id="auto-return" type="checkbox" checked /> 自动回位：松开后，将手机转回首次按下时的姿态并停留片刻</label>
-      <p class="help">按住观察 · 松开冻结 · 转回初始握持方向自动回正<br/>「回正 / 设基准」可随时重新指定回位姿态；触屏仍可拖动</p>
+      <p class="help">按住观察 · 松开冻结 · 松开后移动手机 · 再按住显示新方向<br/>「回正 / 重设基准」重设手机朝向的正前方；触屏仍可拖动</p>
     </section>
   </main>
   <script type="module" src="app.js"></script>
