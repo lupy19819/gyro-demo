@@ -37,3 +37,57 @@ for(const s of [-90,0,90,180]) {
   assert.ok(Number.isFinite(v.yaw)&&Number.isFinite(v.pitch));
 }
 console.log('PASS: 视角四元数、低头初始校准、左右转向、俯仰、松开重锚、角度跨界、横竖屏姿态');
+
+// v0.2: background pose samples, stable physical return detection, rearm rules.
+const {PoseReturnDetector,quaternionDistanceDeg}=await import('./return-detector.mjs');
+const {qAxis, qMul}=await import('./gyro-math.mjs');
+const q0=qDevice(80,45,13,0);
+const qRight=qMul(q0,qAxis('y',35*Math.PI/180));
+const qNear=qMul(q0,qAxis('x',4*Math.PI/180));
+const qPassing=qMul(q0,qAxis('y',7*Math.PI/180));
+const qOther=qMul(q0,qAxis('y',45*Math.PI/180));
+near(quaternionDistanceDeg(q0,q0),0,1e-5);
+near(quaternionDistanceDeg(q0,qRight),35,1e-5);
+near(quaternionDistanceDeg(q0,q0.map(x=>-x)),0,1e-5); // q and -q represent the same pose.
+const hit=new PoseReturnDetector();
+let t=0;
+hit.setOrigin(q0);
+// No correction at rest, including a period longer than dwell.
+assert.equal(hit.sample(q0,t,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=1000,{holding:false}).triggered,false);
+// Background movement alone does not arm the auto-return gesture.
+assert.equal(hit.sample(qOther,t+=100,{holding:false}).armed,false);
+assert.equal(hit.sample(q0,t+=100,{holding:false}).triggered,false);
+// The same 35 degree movement while observing DOES arm the detector.
+assert.equal(hit.sample(qRight,t+=100,{holding:true}).armed,true);
+assert.equal(hit.sample(qRight,t+=100,{holding:false}).triggered,false);
+// Passing through the center without dwelling must not trigger.
+assert.equal(hit.sample(qPassing,t+=100,{holding:false}).triggered,false);
+assert.equal(hit.sample(qNear,t+=100,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=120,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=120,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=120,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=120,{holding:false}).triggered,false);
+assert.equal(hit.sample(q0,t+=120,{holding:false}).triggered,true);
+// Auto-return triggers once per explicit observation, never repeatedly at rest.
+assert.equal(hit.sample(q0,t+=600,{holding:false}).triggered,false);
+// Large movement near origin resets stillness, so fly-bys do not trigger.
+const passing=new PoseReturnDetector();
+passing.setOrigin(q0);
+passing.sample(qRight,0,{holding:true});
+passing.sample(q0,10,{holding:false});
+passing.sample(qPassing,150,{holding:false});
+passing.sample(q0,250,{holding:false});
+assert.equal(passing.sample(q0,500,{holding:false}).triggered,false);
+assert.equal(passing.sample(q0,700,{holding:false}).triggered,true);
+// Hidden/paused sampling cannot count toward dwell.
+const paused=new PoseReturnDetector();
+paused.setOrigin(q0);paused.sample(qRight,0,{holding:true});
+paused.sample(q0,100,{holding:false,eligible:false});
+assert.equal(paused.sample(q0,1100,{holding:false,eligible:true}).triggered,false);
+assert.equal(paused.sample(q0,1550,{holding:false,eligible:true}).triggered,true);
+// Re-reference while tilted clears previous arm and establishes new handset 'home'.
+hit.sample(qOther,t+=20,{holding:true});hit.setOrigin(qOther);
+assert.equal(hit.armed,false);
+assert.equal(hit.sample(qOther,t+=1000,{holding:false}).triggered,false);
+console.log('PASS v0.2: 长期姿态基准、观察后置待回位、静止窗口、经过不误触、不可见禁止、重复去抖、重设基准');
