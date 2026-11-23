@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#101e27" />
+  <title>异世界裂缝 · 姿态窗口 Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="stage">
+    <canvas id="panorama" aria-label="龟岛全景，可用手指拖动观察"></canvas>
+    <div class="shade top-shade" aria-hidden="true"></div>
+    <div class="shade bottom-shade" aria-hidden="true"></div>
+    <header class="top-bar">
+      <div>
+        <div class="eyebrow">INTERWORLD · PROTOTYPE 01</div>
+        <h1>异世界裂缝</h1>
+        <div class="subtitle">龟岛 · 监视哨遗址屋顶</div>
+      </div>
+      <button id="fullscreen" class="tiny-btn" type="button" aria-label="切换全屏">⛶</button>
+    </header>
+    <div class="reticle" aria-hidden="true"><span></span></div>
+    <section class="bottom-ui" aria-label="操作区">
+      <div class="status">
+        <span class="indicator"></span>
+        <div>
+          <p id="sensor-status" aria-live="polite">未开启姿态感应 · 触屏可以拖动场景</p>
+          <small id="sensor-detail">无需竖直举起手机；每次按下自动相对校准</small>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="enable" class="enable-btn" type="button">① 启用方向感应</button>
+        <button id="observe" class="observe-btn" type="button" disabled>按住 · 观察异世界</button>
+        <button id="recenter" class="secondary-btn" type="button">回正</button>
+      </div>
+      <p class="help">按住时转动手机 · 松开固定视角 · 再按住从当前位置继续<br/>无需感应时，直接用手指拖动画面</p>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
