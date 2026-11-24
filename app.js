@@ -225,11 +225,13 @@ video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-
 video.tabIndex=-1;
 stage.appendChild(video);
 panoramaVideo = makePanoramaVideo({video,gl,onError:e=>console.warn('Panorama video:',e)});
-const lowResolution = new URLSearchParams(window.location.search).get('quality') === '720p';
-const videoSource = lowResolution ? 'assets/kamejima.mp4' : 'assets/kamejima_4k.mp4';
+const quality = new URLSearchParams(window.location.search).get('quality');
+const lowResolution = quality === '720p' || quality === '720';
+const previousRestoration = quality === '06';
+const videoSource = lowResolution ? 'assets/kamejima.mp4' : previousRestoration ? 'assets/kamejima_4k.mp4' : 'assets/kamejima_motion_v07.mp4';
 video.src=videoSource;
 const subtitle = document.querySelector('.subtitle');
-if (subtitle) subtitle.textContent += lowResolution ? ' · 720P 对照' : ' · 4K 动态恢复';
+if (subtitle) subtitle.textContent += lowResolution ? ' · 720P 对照' : previousRestoration ? ' · v0.6 对照' : ' · 4K 树冠动态';
 video.load();
 
 function setStatus(message, type='info') {
