@@ -1,5 +1,6 @@
 import { makeGyroController } from './gyro.mjs';
 import { RiftEffects } from './rift-effects.mjs';
+import { makePanoramaVideo } from './panorama-video.mjs';
 
 const canvas = document.querySelector('#panorama');
 const statusEl = document.querySelector('#sensor-status');
@@ -11,12 +12,17 @@ const riftLabel = document.querySelector('#rift-label');
 const riftSubline = document.querySelector('#rift-subline');
 const riftFx = new RiftEffects();
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+let riftActive = false;
+let panoramaVideo = null;
 function setRiftPhase(active) {
-  riftFx.setFrozen(!active, performance.now());
-  stage.dataset.riftState = active ? 'open' : 'frozen';
+  riftActive = active;
+  panoramaVideo?.setActive(active);
+  riftFx.setFrozen(!active,performance.now());
+  stage.dataset.riftState=active?'open':'frozen';
   riftLabel.textContent = active ? '裂缝开启' : '时序冻结';
   riftSubline.textContent = active ? 'WORLD LINK · ACTIVE' : 'WORLD LINK · PAUSED';
 }
+
 const state = { yaw: 0.15, pitch: 0.12, fov: 1.12, elapsedTime: 0, drift: false,
   dragging: false, lastX: 0, lastY: 0, gyroHolding: false };
 const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
@@ -116,7 +122,8 @@ void main() {
   col *= 0.84 + edge * 0.18;
   col = pow(max(col, 0.0), vec3(0.92));
 
-  // Frozen world: subdued silver-white monochrome, visible scene structure.
+  // Sealed/stasis state: pale silver-gray with visible structure, not a black overlay.
+  // Film-like static noise is screen-locked and does not animate while frozen.
   float lum=dot(col,vec3(0.2126,0.7152,0.0722));
   vec3 silver=vec3(0.21,0.26,0.30)+vec3(0.65,0.66,0.66)*clamp(lum*0.92+0.12,0.0,1.0);
   float grain=(hash21(floor(v_uv*u_resolution*0.32))-0.5)*0.018;
@@ -124,7 +131,8 @@ void main() {
   silver+=vec3(grain+lines);
   col=mix(col,silver,clamp(u_freeze,0.0,1.0));
 
-  // Single-pass GPU seal/unseal wave: no extra textures, no frame captures.
+  // Short expanding seal/unseal wave, contained within a single GPU pass.
+  // No additional textures, model assets, or CPU screenshot captures required.
   float aspect=u_resolution.x/u_resolution.y;
   vec2 cp=(v_uv-0.5)*vec2(aspect,1.0);
   float maxRadius=length(vec2(aspect,1.0))*0.5;
@@ -132,6 +140,7 @@ void main() {
   float ring=exp(-pow((distanceFromCenter-u_fx_progress*1.10)*30.0,2.0));
   vec3 light=u_fx_direction>0.0?vec3(0.13,0.57,0.58):vec3(0.52,0.58,0.64);
   col+=light*ring*u_fx_pulse*0.35;
+  // On sealing, a brief misty white flash makes the change feel like time stopping.
   float sealFlash=step(u_fx_direction,-0.5)*(1.0-smoothstep(0.02,0.34,u_fx_progress))*u_fx_pulse*0.13;
   col=mix(col,vec3(0.90,0.95,0.97),sealFlash);
   outColor = vec4(clamp(col,0.0,1.0), 1.0);
@@ -181,10 +190,12 @@ function render() {
   const fx = riftFx.tick(performance.now());
   gl.uniform1f(uniforms.u_freeze, fx.freeze);
   gl.uniform1f(uniforms.u_fx_progress, fx.progress);
-  gl.uniform1f(uniforms.u_fx_direction, reducedMotion ? 0 : fx.direction);
-  gl.uniform1f(uniforms.u_fx_pulse, reducedMotion ? 0 : fx.pulse);
-  if (skyTexture) {
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, skyTexture);
+  gl.uniform1f(uniforms.u_fx_direction, reducedMotion?0:fx.direction);
+  gl.uniform1f(uniforms.u_fx_pulse, reducedMotion?0:fx.pulse);
+  gl.activeTexture(gl.TEXTURE0);
+  const backgroundTexture = panoramaVideo?.update() || skyTexture;
+  if (backgroundTexture) {
+    gl.bindTexture(gl.TEXTURE_2D, backgroundTexture);
     gl.uniform1i(uniforms.u_sky_texture, 0);
   }
   gl.drawArrays(gl.TRIANGLES,0,6);
@@ -204,7 +215,18 @@ function loadPanorama(url) {
   image.onerror=()=>setStatus('全景图片加载失败，请通过 HTTP(S) 服务打开项目', 'error');
   image.src=url;
 }
-loadPanorama('assets/bg08_d.png');
+loadPanorama('assets/bg08_d.png'); // fallback while the video is loading
+const video = document.createElement('video');
+video.muted = true; video.defaultMuted = true; video.playsInline = true;
+video.loop = true; video.preload = 'auto';
+video.setAttribute('muted',''); video.setAttribute('playsinline','');
+video.setAttribute('webkit-playsinline',''); video.setAttribute('aria-hidden','true');
+video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;';
+video.tabIndex=-1;
+stage.appendChild(video);
+panoramaVideo = makePanoramaVideo({video,gl,onError:e=>console.warn('Panorama video:',e)});
+video.src='assets/kamejima.mp4';
+video.load();
 
 function setStatus(message, type='info') {
   statusEl.textContent = message;
@@ -309,7 +331,7 @@ document.querySelector('#fullscreen').addEventListener('click',async()=>{
 let prev = performance.now();
 function frame(now) {
   const dt=Math.min(0.05,(now-prev)/1000);prev=now;
-  state.elapsedTime+=dt;
+  if(riftActive)state.elapsedTime+=dt;
   if(state.drift && !state.gyroHolding && !state.dragging)state.yaw+=dt*0.018;
   render();
   requestAnimationFrame(frame);
@@ -317,10 +339,11 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 window.render_game_to_text=()=>JSON.stringify({
-  scene:'kameshima-watchtower-roof', source:'original bg08_d.png',
+  scene:'kameshima-watchtower-roof', source:panoramaVideo?.failed?'static fallback':'assets/kamejima.mp4',
   view:{yaw:+state.yaw.toFixed(4),pitch:+state.pitch.toFixed(4),fov:+state.fov.toFixed(4)},
   gyro:{enabled:gyro.ready,holding:gyro.holding,hasSample:gyro.hasSample,hasOrigin:gyro.hasOrigin,trackingView:gyro.trackingView},
   rift:{mode:stage.dataset.riftState??'uninitialized',freeze:+riftFx.sample(performance.now()).freeze.toFixed(3)},
+  video:{time:panoramaVideo?.time,paused:panoramaVideo?.paused,failed:panoramaVideo?.failed},
   projection:'fixed-point 3DoF panorama'
 });
 window.gyroDemo={

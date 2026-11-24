@@ -71,16 +71,19 @@ controller.end();
 assert.equal(controller.hasOrigin,true);
 console.log('PASS v0.3: 长期姿态基准、低头校准、释放仍跟踪、重按接管新位置、回位、反复按放不累积、手动重设、横竖屏切换');
 
+// v0.4 visual-state regression: color freeze and seal/unseal animation.
 const fx=new RiftEffects({openMs:600,freezeMs:500});
 near(fx.sample(0).freeze,0);
 fx.setFrozen(true,1000);
 assert.equal(fx.sample(1020).direction,-1);
 assert.ok(fx.sample(1300).freeze>0.5);
 near(fx.tick(2000).freeze,1);
+// Opening restores full-color and has a visible temporal pulse.
 fx.setFrozen(false,2100);
 assert.equal(fx.sample(2150).direction,1);
 assert.ok(fx.sample(2400).pulse>0);
 near(fx.tick(2900).freeze,0);
+// Rapid press/release must keep the current mix; no white flash or jump.
 fx.setFrozen(true,3000);
 const mid=fx.sample(3180).freeze;
 fx.setFrozen(false,3180);
@@ -89,4 +92,17 @@ const midAgain=fx.sample(3220).freeze;
 fx.setFrozen(true,3220);
 near(fx.sample(3220).freeze,midAgain);
 near(fx.tick(4000).freeze,1);
-console.log('PASS v0.4: seal/unseal transition and interrupted-state continuity');
+// v0.3 gyroscope persistent physical basis is left intact.
+console.log('PASS v0.4: seal/unseal transition, silver stasis, rapid interrupt continuity');
+
+// v0.5: fake media and GL verify pause/resume, frame gating and fallback.
+const {makePanoramaVideo}=await import('./panorama-video.mjs');
+const media={readyState:2,videoWidth:1280,videoHeight:640,currentTime:0,paused:true,plays:0,pauses:0,addEventListener(){},play(){this.paused=false;this.plays++;return Promise.resolve();},pause(){this.paused=true;this.pauses++;}};
+let allocations=0,updates=0;
+const tex={};const mockGL={createTexture:()=>tex,bindTexture(){},texParameteri(){},texImage2D(){allocations++;},texSubImage2D(){updates++;},deleteTexture(){}};
+const pv=makePanoramaVideo({video:media,gl:mockGL});
+assert.equal(pv.update(),tex);assert.equal(allocations,1);
+pv.setActive(true);assert.equal(media.plays,1);media.currentTime=.4;pv.update();assert.equal(updates,1);pv.update();assert.equal(updates,1);
+pv.setActive(false);assert.equal(media.paused,true);media.currentTime=.42;pv.update();assert.equal(updates,1);
+pv.setActive(true);assert.equal(media.currentTime,.42);assert.equal(media.plays,2);pv.update();assert.equal(updates,2);pv.setActive(false);assert.equal(media.pauses,2);
+console.log('PASS v0.5: video frame upload, hold/play, release/pause, frozen frame, resume without seek');
