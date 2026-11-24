@@ -225,7 +225,11 @@ video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-
 video.tabIndex=-1;
 stage.appendChild(video);
 panoramaVideo = makePanoramaVideo({video,gl,onError:e=>console.warn('Panorama video:',e)});
-video.src='assets/kamejima.mp4';
+const lowResolution = new URLSearchParams(window.location.search).get('quality') === '720p';
+const videoSource = lowResolution ? 'assets/kamejima.mp4' : 'assets/kamejima_4k.mp4';
+video.src=videoSource;
+const subtitle = document.querySelector('.subtitle');
+if (subtitle) subtitle.textContent += lowResolution ? ' · 720P 对照' : ' · 4K 动态恢复';
 video.load();
 
 function setStatus(message, type='info') {
@@ -339,7 +343,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 window.render_game_to_text=()=>JSON.stringify({
-  scene:'kameshima-watchtower-roof', source:panoramaVideo?.failed?'static fallback':'assets/kamejima.mp4',
+  scene:'kameshima-watchtower-roof', source:panoramaVideo?.failed?'static fallback':videoSource,
   view:{yaw:+state.yaw.toFixed(4),pitch:+state.pitch.toFixed(4),fov:+state.fov.toFixed(4)},
   gyro:{enabled:gyro.ready,holding:gyro.holding,hasSample:gyro.hasSample,hasOrigin:gyro.hasOrigin,trackingView:gyro.trackingView},
   rift:{mode:stage.dataset.riftState??'uninitialized',freeze:+riftFx.sample(performance.now()).freeze.toFixed(3)},
